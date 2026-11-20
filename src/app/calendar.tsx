@@ -70,7 +70,7 @@ export default function PriceCalendar() {
         </Pressable>
       </Row>
       {data && <SampleBadge show={data.sample} />}
-      <Card style={{ padding: 8 }}>
+      <Card style={{ padding: 8, width: '100%', maxWidth: 640, alignSelf: 'center' }}>
         <View style={s.row}>
           {WEEK.map((w) => (
             <Text key={w} style={s.week}>
@@ -117,7 +117,7 @@ const s = themed(() => ({
   month: { color: C.text, fontSize: 17, fontWeight: '700' },
   row: { flexDirection: 'row', flexWrap: 'wrap' },
   week: { width: "14.2857%" as const, textAlign: 'center', color: C.muted, fontSize: 12, fontWeight: '600', paddingVertical: 6 },
-  cell: { width: "14.2857%" as const, aspectRatio: 0.95, alignItems: 'center', justifyContent: 'center', borderRadius: 10, gap: 2 },
+  cell: { width: "14.2857%" as const, aspectRatio: 0.95, alignItems: 'center', justifyContent: 'center', borderRadius: 12, gap: 2, borderWidth: 2, borderColor: C.card },
   num: { color: C.text, fontSize: 14, fontWeight: '600' },
   price: { color: C.text, fontSize: 11, fontWeight: '700' },
 }));

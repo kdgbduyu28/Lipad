@@ -14,7 +14,8 @@ export function Icon({ name, size = 20, color = C.text, style }: { name: IconNam
 /** Scrolling page with a centered max-width column and safe-area padding. */
 export function Page({ children, header, scroll = true, pad = true }: { children: ReactNode; header?: ReactNode; scroll?: boolean; pad?: boolean }) {
   const insets = useSafeAreaInsets();
-  const inner = <View style={[styles.column, pad && styles.pad]}>{children}</View>;
+  // pad=false is full-bleed: the screen lays out its own columns (e.g. a full-width hero).
+  const inner = pad ? <View style={[styles.column, styles.pad]}>{children}</View> : <View>{children}</View>;
   return (
     <View style={{ flex: 1, backgroundColor: C.bg }}>
       {header}
