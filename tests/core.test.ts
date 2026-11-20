@@ -5,7 +5,7 @@ import { ago, duration, nightsBetween, peso } from '../src/lib/format';
 import { longWeekends } from '../src/lib/holidays';
 import { normaliseFare, normaliseFares, toCalendar } from '../src/lib/normalise';
 import { cityName, distanceKm, searchPlaces } from '../src/lib/places';
-import { dailyFor, planTrips } from '../src/lib/planner';
+import { applyRoundTrips, dailyFor, planTrips, tripDates } from '../src/lib/planner';
 import { sampleFares, samplePopular } from '../src/lib/sample';
 import type { Fare, SearchQuery } from '../src/lib/types';
 
@@ -105,6 +105,19 @@ describe('planner', () => {
     const list = [fare({ to: 'CEB', price: 1500 }), fare({ to: 'BKK', price: 3000 })];
     expect(planTrips({ ...input, budget: 1e6, scope: 'domestic' }, list).map((r) => r.to)).toEqual(['CEB']);
     expect(planTrips({ ...input, budget: 1e6, scope: 'international' }, list).map((r) => r.to)).toEqual(['BKK']);
+  });
+  it('uses a real round-trip fare over one-way x2', () => {
+    const oneWay = fare({ to: 'CEB', price: 1500 });
+    const rt = fare({ to: 'CEB', price: 2600, returnAt: '2027-03-17T10:00:00+08:00' });
+    const fares = applyRoundTrips([oneWay, fare({ to: 'BKK', price: 3000 })], [rt]);
+    expect(fares.filter((f) => f.to === 'CEB')).toEqual([rt]);
+    const row = planTrips({ ...input, budget: 1e6 }, fares).find((r) => r.to === 'CEB')!;
+    expect(row).toMatchObject({ roundTrip: true, flights: 5200 });
+    expect(planTrips({ ...input, budget: 1e6 }, [rt, oneWay]).find((r) => r.to === 'CEB')!.roundTrip).toBe(true);
+  });
+  it('picks trip dates from the plan or the cheap fare', () => {
+    expect(tripDates({ depart: '2027-03', nights: 3 }, fare())).toEqual({ depart: '2027-03-14', ret: '2027-03-17' });
+    expect(tripDates({ depart: '2027-04-09', nights: 2 }, fare())).toEqual({ depart: '2027-04-09', ret: '2027-04-11' });
   });
   it('skips places without a spending estimate', () => {
     expect(dailyFor('ZZZ', 'tipid', pax1)).toBeUndefined();

@@ -176,6 +176,13 @@ export const fil: Record<string, string> = {
   'Last year, same dates': 'Noong isang taon, parehong petsa',
   'rain {n} of {d} days': 'umulan {n} sa {d} araw',
   'See flights from {price}': 'Tingnan ang flights mula {price}',
+  'See round trips from {price}': 'Tingnan ang balikan mula {price}',
+  'Cheapest dates: {a} – {b}': 'Pinakamurang petsa: {a} – {b}',
+  'Round-trip flights': 'Balikang flights',
+  'Flights (est.)': 'Flights (tantya)',
+  'Checking real round-trip fares for the top picks…': 'Tinitingnan ang totoong presyo ng balikan para sa mga nangunguna…',
+  'Estimates. Flights use real round-trip fares where found, otherwise the cheapest one-way fare times two; kids at the adult fare, infants at 10%. Daily costs are typical for the style you picked. Check final prices before you book.':
+    'Tantya lang. Totoong presyo ng balikan ang gamit kung meron, kung wala ay pinakamurang one-way na dinoble; bata sa presyo ng matanda, sanggol sa 10%. Karaniwang gastos ang arawan para sa estilong pinili mo. Tingnan ang huling presyo bago mag-book.',
   'Estimates. Flights use the cheapest recent one-way fare times two; kids at the adult fare, infants at 10%. Daily costs are typical for the style you picked. Check final prices before you book.':
     'Tantya lang. Ang flights ay pinakamurang one-way kamakailan na dinoble; bata sa presyo ng matanda, sanggol sa 10%. Karaniwang gastos ang arawan para sa estilong pinili mo. Tingnan ang huling presyo bago mag-book.',
 

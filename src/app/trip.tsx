@@ -4,11 +4,11 @@ import { useEffect, useState } from 'react';
 import { Text, View } from 'react-native';
 import { Bar, Button, Card, Empty, Icon, Loading, P, Page, Row, SampleBadge } from '../components/ui';
 import { t } from '../i18n';
-import { fetchPopular } from '../lib/api';
+import { fetchFares, fetchPopular } from '../lib/api';
 import { CURRENCY, Weather, pesoPer, weatherFor } from '../lib/extras';
 import { day, monthLabel, peso, todayPH } from '../lib/format';
 import { resultsHref } from '../lib/nav';
-import { PlanResult, planTrips } from '../lib/planner';
+import { PlanResult, applyRoundTrips, planTrips, tripDates } from '../lib/planner';
 import { cityName, countryName, place } from '../lib/places';
 import { shift } from '../lib/holidays';
 import { useApp } from '../store/useApp';
@@ -18,17 +18,35 @@ export default function Trip() {
   const plan = useApp((s) => s.plan);
   const [rows, setRows] = useState<PlanResult[] | null>(null);
   const [sample, setSample] = useState(false);
+  const [refining, setRefining] = useState(false);
   const depart = plan ? (plan.when === 'month' ? plan.month : plan.depart) : '';
 
   useEffect(() => {
     if (!plan) return;
     let live = true;
     setRows(null);
-    fetchPopular(plan.from, depart.slice(0, 7)).then((d) => {
+    const input = { ...plan, depart };
+    (async () => {
+      const d = await fetchPopular(plan.from, depart.slice(0, 7));
       if (!live) return;
       setSample(d.sample);
-      setRows(planTrips({ ...plan, depart }, d.fares));
-    });
+      const first = planTrips(input, d.fares);
+      setRows(first);
+      // Then check real round-trip fares for the top picks and re-rank.
+      const top = first.slice(0, 8);
+      if (!top.length) return;
+      setRefining(true);
+      const found = await Promise.all(
+        top.map(async (r) => {
+          const { depart: dep, ret } = tripDates(input, r.fare);
+          const res = await fetchFares({ from: plan.from, to: r.to, depart: dep, ret, pax: plan.pax });
+          return res.fares;
+        }),
+      );
+      if (!live) return;
+      setRows(planTrips(input, applyRoundTrips(d.fares, found.flat())));
+      setRefining(false);
+    })();
     return () => {
       live = false;
     };
@@ -75,11 +93,12 @@ export default function Trip() {
             </Card>
           )}
           {fits && <P muted>{t('{n} trips fit your budget, most money left first.', { n: rows.length })}</P>}
+          {refining && <P muted small>{t('Checking real round-trip fares for the top picks…')}</P>}
           {rows.slice(0, 20).map((r) => (
             <TripCard key={r.to} r={r} plan={plan} depart={depart} />
           ))}
           <P muted small>
-            {t('Estimates. Flights use the cheapest recent one-way fare times two; kids at the adult fare, infants at 10%. Daily costs are typical for the style you picked. Check final prices before you book.')}
+            {t('Estimates. Flights use real round-trip fares where found, otherwise the cheapest one-way fare times two; kids at the adult fare, infants at 10%. Daily costs are typical for the style you picked. Check final prices before you book.')}
           </P>
         </>
       )}
@@ -100,7 +119,7 @@ function TripCard({ r, plan, depart }: { r: PlanResult; plan: NonNullable<Return
   }, [r.to, start, plan.nights, cur]);
 
   const pct = Math.min(100, Math.round((r.total / plan.budget) * 100));
-  const ret = shift(start, plan.nights);
+  const ret = r.fare.returnAt ? r.fare.returnAt.slice(0, 10) : shift(start, plan.nights);
 
   return (
     <Card>
@@ -119,8 +138,12 @@ function TripCard({ r, plan, depart }: { r: PlanResult; plan: NonNullable<Return
       <View style={s.bar}>
         <View style={[s.barFill, { width: `${pct}%` as `${number}%`, backgroundColor: r.fits ? C.good : C.bad }]} />
       </View>
+      <Row gap={6}>
+        <Icon name="calendar-outline" size={16} color={C.primary} />
+        <Text style={s.dates}>{t('Cheapest dates: {a} – {b}', { a: day(start), b: day(ret) })}</Text>
+      </Row>
       <Row gap={16} style={{ flexWrap: 'wrap' }}>
-        <Line icon="airplane-outline" label={t('Flights')} value={peso(r.flights)} />
+        <Line icon="airplane-outline" label={r.roundTrip ? t('Round-trip flights') : t('Flights (est.)')} value={peso(r.flights)} />
         <Line icon="bed-outline" label={t('Stay, food, rides')} value={`${peso(r.stay)} (${peso(r.perDay)}/${t('day')})`} />
       </Row>
       <Row gap={16} style={{ flexWrap: 'wrap' }}>
@@ -135,9 +158,9 @@ function TripCard({ r, plan, depart }: { r: PlanResult; plan: NonNullable<Return
       </Row>
       <Button
         kind="soft"
-        label={t('See flights from {price}', { price: peso(r.fare.price) })}
+        label={r.roundTrip ? t('See round trips from {price}', { price: peso(r.fare.price) }) : t('See flights from {price}', { price: peso(r.fare.price) })}
         icon="search"
-        onPress={() => router.push(resultsHref({ from: plan.from, to: r.to, depart: depart.length === 10 ? depart : start, ret: depart.length === 10 ? shift(depart, plan.nights) : ret, pax: plan.pax }))}
+        onPress={() => router.push(resultsHref({ from: plan.from, to: r.to, depart: start, ret, pax: plan.pax }))}
       />
     </Card>
   );
@@ -159,6 +182,7 @@ const s = themed(() => ({
   total: { fontSize: 20, fontWeight: '800' },
   meta: { color: C.muted, fontSize: 13 },
   value: { color: C.text, fontSize: 13, fontWeight: '600', flexShrink: 1 },
+  dates: { color: C.primary, fontSize: 14, fontWeight: '700', flexShrink: 1 },
   bar: { height: 6, backgroundColor: C.line, borderRadius: 3, overflow: 'hidden' },
   barFill: { height: 6 },
 }));

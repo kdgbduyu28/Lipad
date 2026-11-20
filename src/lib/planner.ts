@@ -28,7 +28,32 @@ export type PlanResult = {
   left: number;
   fits: boolean;
   perDay: number;
+  /** True when flights come from a real round-trip fare, not one-way × 2. */
+  roundTrip: boolean;
 };
+
+/** The dates to check a round trip for: the planned start (or the cheap fare's day) and start + nights. */
+export function tripDates(input: Pick<PlanInput, 'depart' | 'nights'>, fare: Fare): { depart: string; ret: string } {
+  const depart = input.depart.length === 10 ? input.depart : fare.departAt.slice(0, 10);
+  const d = new Date(`${depart}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + Math.max(1, input.nights));
+  return { depart, ret: d.toISOString().slice(0, 10) };
+}
+
+/**
+ * Swap in real round-trip fares where we have them: for each destination with
+ * a round-trip fare, its one-way fares are dropped and the cheapest round trip
+ * is used instead.
+ */
+export function applyRoundTrips(fares: Fare[], roundTrips: Fare[]): Fare[] {
+  const best = new Map<string, Fare>();
+  for (const f of roundTrips) {
+    if (!f.returnAt) continue;
+    const cur = best.get(f.to);
+    if (!cur || f.price < cur.price) best.set(f.to, f);
+  }
+  return [...fares.filter((f) => !best.has(f.to)), ...best.values()];
+}
 
 /** Daily spending for the group, or undefined for places without an estimate. */
 export function dailyFor(to: string, style: Style, pax: Pax): number | undefined {
@@ -50,6 +75,10 @@ export function planTrips(input: PlanInput, fares: Fare[]): PlanResult[] {
   const best = new Map<string, Fare>();
   for (const f of fares) {
     const to = f.to;
+    // A real round trip always wins over a one-way estimate for the same place.
+    const cur0 = best.get(to);
+    if (cur0?.returnAt && !f.returnAt) continue;
+    if (f.returnAt && cur0 && !cur0.returnAt) best.delete(to);
     if (to === input.from) continue;
     const domestic = place(input.from)?.country === 'PH' && place(to)?.country === 'PH';
     if (input.scope === 'domestic' && !domestic) continue;
@@ -66,7 +95,7 @@ export function planTrips(input: PlanInput, fares: Fare[]): PlanResult[] {
     const stay = perDay * Math.max(1, input.nights);
     const total = flights + stay;
     const left = input.budget - total;
-    rows.push({ to, fare, flights, stay, total, left, fits: left >= 0, perDay });
+    rows.push({ to, fare, flights, stay, total, left, fits: left >= 0, perDay, roundTrip: !!fare.returnAt });
   }
   const fits = rows.filter((r) => r.fits).sort((a, b) => b.left - a.left);
   if (fits.length) return fits;
